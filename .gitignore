@@ -1,0 +1,10 @@
+.pytest_cache/
+__pycache__/
+*.pyc
+.git/
+.repo-git/
+config/local.php
+dev-php.ini
+storage/*.sqlite
+storage/*.sqlite-*
+storage/logs/*.log
