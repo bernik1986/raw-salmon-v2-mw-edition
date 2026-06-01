@@ -60,7 +60,7 @@ View::header('Dashboard', $user);
 <section class="section">
     <div class="section-title">
         <h2>Last sending jobs</h2>
-        <a class="button secondary" href="/presets.php">Create job</a>
+        <a class="button secondary" href="<?php echo e(url('/presets.php')); ?>">Create job</a>
     </div>
     <table>
         <thead>

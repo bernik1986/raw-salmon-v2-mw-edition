@@ -60,7 +60,7 @@ View::header('Start Sending', $user);
     <form method="post" class="button-row confirm-send">
         <?php echo csrf_field(); ?>
         <input type="hidden" name="preset_id" value="<?php echo (int) $presetId; ?>">
-        <a class="button secondary" href="/presets.php">Back</a>
+        <a class="button secondary" href="<?php echo e(url('/presets.php')); ?>">Back</a>
         <button type="submit">Start Sending</button>
     </form>
 </section>

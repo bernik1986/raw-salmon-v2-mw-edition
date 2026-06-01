@@ -95,4 +95,27 @@ final class UserService
             'id' => $id,
         ]);
     }
+
+    public function resetAdminPasswordByEmail(string $email, string $password): void
+    {
+        $email = strtolower(trim($email));
+        if (!Security::safeEmail($email) || strlen($password) < 8) {
+            throw new \InvalidArgumentException('Invalid recovery token or admin email');
+        }
+
+        $statement = $this->pdo->prepare(
+            "UPDATE users
+             SET password_hash = :password_hash, status = 'active', updated_at = :updated_at
+             WHERE email = :email AND role = 'admin'"
+        );
+        $statement->execute([
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'updated_at' => AuditLog::now(),
+            'email' => $email,
+        ]);
+
+        if ($statement->rowCount() !== 1) {
+            throw new \InvalidArgumentException('Invalid recovery token or admin email');
+        }
+    }
 }

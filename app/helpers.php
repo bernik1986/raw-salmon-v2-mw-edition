@@ -32,7 +32,7 @@ function e(?string $value): string
 
 function redirect(string $path): never
 {
-    header('Location: ' . $path);
+    header('Location: ' . url($path));
     exit;
 }
 
@@ -92,18 +92,100 @@ function asset(string $path): string
     return public_base_url() . '/assets/' . ltrim($path, '/');
 }
 
+function url(string $path = ''): string
+{
+    if ($path !== '' && (str_starts_with($path, '#') || preg_match('~^(?:[a-z][a-z0-9+.-]*:)?//~i', $path))) {
+        return $path;
+    }
+
+    $base = app_base_url();
+    if ($path === '') {
+        return $base === '' ? '/' : $base;
+    }
+
+    return $base . '/' . ltrim($path, '/');
+}
+
+function app_base_url(): string
+{
+    $documentRoot = realpath((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
+    $basePath = realpath(APP_BASE_PATH);
+    if ($documentRoot && $basePath) {
+        $relative = filesystem_relative_path($basePath, $documentRoot);
+        if ($relative !== null) {
+            return filesystem_path_to_url($relative);
+        }
+    }
+
+    return script_base_url($basePath ?: APP_BASE_PATH);
+}
+
 function public_base_url(): string
 {
     $documentRoot = realpath((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    if ($documentRoot && is_file($documentRoot . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'style.css')) {
-        return '';
-    }
-    if ($documentRoot && is_file($documentRoot . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'style.css')) {
-        return '/public';
+    $publicPath = realpath(APP_BASE_PATH . '/public');
+    if ($documentRoot && $publicPath) {
+        $relative = filesystem_relative_path($publicPath, $documentRoot);
+        if ($relative !== null) {
+            return filesystem_path_to_url($relative);
+        }
     }
 
-    $scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
-    return str_contains($scriptName, '/public/') ? '' : '/public';
+    return rtrim(app_base_url(), '/') . '/public';
+}
+
+function filesystem_relative_path(string $path, string $parent): ?string
+{
+    $path = rtrim(str_replace('\\', '/', $path), '/');
+    $parent = rtrim(str_replace('\\', '/', $parent), '/');
+    $comparisonPath = PHP_OS_FAMILY === 'Windows' ? strtolower($path) : $path;
+    $comparisonParent = PHP_OS_FAMILY === 'Windows' ? strtolower($parent) : $parent;
+
+    if ($comparisonPath === $comparisonParent) {
+        return '';
+    }
+
+    $prefix = $comparisonParent . '/';
+    if (!str_starts_with($comparisonPath, $prefix)) {
+        return null;
+    }
+
+    return substr($path, strlen($parent) + 1);
+}
+
+function filesystem_path_to_url(string $path): string
+{
+    $segments = array_filter(explode('/', str_replace('\\', '/', trim($path, '/\\'))), 'strlen');
+    if (!$segments) {
+        return '';
+    }
+
+    return '/' . implode('/', array_map('rawurlencode', $segments));
+}
+
+function script_base_url(string $rootPath): string
+{
+    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    $scriptFilename = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? ''));
+    if (!$scriptFilename) {
+        return '';
+    }
+
+    $relative = filesystem_relative_path($scriptFilename, $rootPath);
+    if ($relative === null) {
+        $publicPath = realpath(APP_BASE_PATH . '/public');
+        $relative = $publicPath ? filesystem_relative_path($scriptFilename, $publicPath) : null;
+    }
+    if ($relative === null || $relative === '') {
+        return '';
+    }
+
+    $suffix = '/' . str_replace('%2F', '/', rawurlencode(str_replace('\\', '/', $relative)));
+    if (!str_ends_with($scriptName, $suffix)) {
+        return '';
+    }
+
+    return rtrim(substr($scriptName, 0, -strlen($suffix)), '/');
 }
 
 function is_installed(): bool

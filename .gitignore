@@ -8,3 +8,7 @@ dev-php.ini
 storage/*.sqlite
 storage/*.sqlite-*
 storage/logs/*.log
+storage/attachments/*
+!storage/attachments/.gitkeep
+storage/sessions/*
+!storage/sessions/.gitkeep

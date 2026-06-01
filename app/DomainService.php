@@ -183,6 +183,14 @@ final class DomainService
 
         $settings = (new MailgunSettingsService($this->pdo))->get($userId);
         if (empty($settings['api_key_plain'])) {
+            AppLog::write('warning', 'mailgun.domain_test', [
+                'user_id' => $userId,
+                'domain_id' => $domainId,
+                'domain' => $domain['domain'],
+                'region' => $domain['region'],
+                'ok' => false,
+                'error' => 'Mailgun API key is required',
+            ]);
             throw new \InvalidArgumentException('Mailgun API key is required');
         }
 
@@ -198,6 +206,16 @@ final class DomainService
             'last_test_at' => AuditLog::now(),
             'id' => $domainId,
             'user_id' => $userId,
+        ]);
+
+        AppLog::write($result['ok'] ? 'info' : 'error', 'mailgun.domain_test', [
+            'user_id' => $userId,
+            'domain_id' => $domainId,
+            'domain' => $domain['domain'],
+            'region' => $domain['region'],
+            'ok' => (bool) $result['ok'],
+            'status_code' => (int) ($result['status_code'] ?? 0),
+            'error' => $result['error'] ?? null,
         ]);
 
         return $result;

@@ -33,5 +33,22 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
-    session_start();
+    $sessionPath = (string) ($config['session_storage_path'] ?? '');
+    if ($sessionPath !== '') {
+        if (!is_dir($sessionPath)) {
+            @mkdir($sessionPath, 0775, true);
+        }
+        if (is_dir($sessionPath) && is_writable($sessionPath)) {
+            session_save_path($sessionPath);
+        }
+    }
+
+    @session_start();
+}
+
+define('APP_SESSION_READY', session_status() === PHP_SESSION_ACTIVE);
+
+if (!APP_SESSION_READY && is_file(APP_BASE_PATH . '/config/local.php')) {
+    http_response_code(500);
+    exit('Session storage is not writable. Check storage/sessions directory permissions.');
 }

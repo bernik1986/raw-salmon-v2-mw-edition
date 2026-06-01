@@ -32,7 +32,7 @@ HTML;
         echo '<main class="main">';
         echo '<div class="topbar"><div><div class="product-kicker">Mail Test Sender</div><h1>' . $pageTitle . '</h1><p>' . e($appName) . '</p></div>';
         if ($user) {
-            echo '<form method="post" action="/logout.php" class="logout-form">' . csrf_field() . '<button type="submit">Logout</button></form>';
+            echo '<form method="post" action="' . e(url('/logout.php')) . '" class="logout-form">' . csrf_field() . '<button type="submit">Logout</button></form>';
         }
         echo '</div>';
 
@@ -59,17 +59,18 @@ HTML;
         echo '<aside class="sidebar">';
         echo '<div class="brand"><span class="brand-mark">RS</span><div><strong>RAW SALMON</strong><span>V2.0 MW edition</span></div></div>';
         echo '<nav>';
-        echo '<a href="/dashboard.php">Dashboard</a>';
+        echo '<a href="' . e(url('/dashboard.php')) . '">Dashboard</a>';
         if ($isAdmin) {
-            echo '<a href="/users.php">Users</a>';
+            echo '<a href="' . e(url('/users.php')) . '">Users</a>';
+            echo '<a href="' . e(url('/diagnostics.php')) . '">Diagnostics</a>';
         }
-        echo '<a href="/mailgun-settings.php">Mailgun Settings</a>';
-        echo '<a href="/domains.php">Domains</a>';
-        echo '<a href="/recipients.php">Recipients</a>';
-        echo '<a href="/presets.php">Presets</a>';
-        echo '<a href="/queue.php">Sending Queue</a>';
-        echo '<a href="/logs.php">Logs</a>';
-        echo '<a href="/webhook-events.php">Webhook Events</a>';
+        echo '<a href="' . e(url('/mailgun-settings.php')) . '">Mailgun Settings</a>';
+        echo '<a href="' . e(url('/domains.php')) . '">Domains</a>';
+        echo '<a href="' . e(url('/recipients.php')) . '">Recipients</a>';
+        echo '<a href="' . e(url('/presets.php')) . '">Presets</a>';
+        echo '<a href="' . e(url('/queue.php')) . '">Sending Queue</a>';
+        echo '<a href="' . e(url('/logs.php')) . '">Logs</a>';
+        echo '<a href="' . e(url('/webhook-events.php')) . '">Webhook Events</a>';
         echo '</nav>';
         echo '<div class="sidebar-user">' . e($user['name']) . '<span>' . e($user['role']) . '</span></div>';
         echo '</aside>';

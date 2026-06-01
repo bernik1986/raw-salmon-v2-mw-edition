@@ -43,7 +43,7 @@ View::header('Presets', $user);
         <h2>Saved Presets</h2>
         <div class="button-row">
             <a class="button secondary" href="#import-preset">Import</a>
-            <a class="button" href="/preset-edit.php">Create Preset</a>
+            <a class="button" href="<?php echo e(url('/preset-edit.php')); ?>">Create Preset</a>
         </div>
     </div>
     <table>
@@ -62,15 +62,15 @@ View::header('Presets', $user);
                 <td><span class="status <?php echo e($preset['status']); ?>"><?php echo e($preset['status']); ?></span></td>
                 <td><?php echo e($preset['updated_at']); ?></td>
                 <td class="actions">
-                    <a class="button secondary" href="/preset-edit.php?id=<?php echo (int) $preset['id']; ?>">Edit</a>
-                    <a class="button secondary" href="/preset-export.php?id=<?php echo (int) $preset['id']; ?>">Export</a>
+                    <a class="button secondary" href="<?php echo e(url('/preset-edit.php?id=' . (int) $preset['id'])); ?>">Edit</a>
+                    <a class="button secondary" href="<?php echo e(url('/preset-export.php?id=' . (int) $preset['id'])); ?>">Export</a>
                     <form method="post" class="compact-form">
                         <?php echo csrf_field(); ?>
                         <input type="hidden" name="action" value="clone">
                         <input type="hidden" name="preset_id" value="<?php echo (int) $preset['id']; ?>">
                         <button type="submit">Clone</button>
                     </form>
-                    <a class="button" href="/send-job.php?preset_id=<?php echo (int) $preset['id']; ?>">Create Sending Job</a>
+                    <a class="button" href="<?php echo e(url('/send-job.php?preset_id=' . (int) $preset['id'])); ?>">Create Sending Job</a>
                 </td>
             </tr>
         <?php endforeach; ?>

@@ -107,17 +107,31 @@ final class QueueService
         $statement = $this->pdo->prepare(
             <<<'SQL'
 SELECT q.*,
-                    COALESCE(md.domain, NULLIF(p.mailgun_domain, ''), ms.domain) AS resolved_domain,
-                    COALESCE(md.region, ms.region) AS resolved_region,
-                    COALESCE(md.default_reply_to, ms.default_reply_to) AS resolved_reply_to,
-                    COALESCE(md.test_mode, ms.test_mode) AS resolved_test_mode,
+                    COALESCE(NULLIF(md.domain, ''), NULLIF(pd.domain, ''), NULLIF(p.mailgun_domain, ''), NULLIF(dd.domain, ''), NULLIF(ms.domain, '')) AS resolved_domain,
+                    COALESCE(md.region, pd.region, dd.region, ms.region) AS resolved_region,
+                    COALESCE(md.default_reply_to, pd.default_reply_to, dd.default_reply_to, ms.default_reply_to) AS resolved_reply_to,
+                    COALESCE(md.test_mode, pd.test_mode, dd.test_mode, ms.test_mode) AS resolved_test_mode,
                     ms.api_key_encrypted,
                     j.paused_at
              FROM email_queue q
              INNER JOIN sending_jobs j ON j.id = q.job_id
              INNER JOIN presets p ON p.id = j.preset_id
              INNER JOIN mailgun_settings ms ON ms.user_id = q.user_id
-             LEFT JOIN mailgun_domains md ON md.id = p.mailgun_domain_id
+             LEFT JOIN mailgun_domains md ON md.id = p.mailgun_domain_id AND md.user_id = q.user_id
+             LEFT JOIN mailgun_domains pd ON pd.id = (
+                 SELECT matched.id
+                 FROM mailgun_domains matched
+                 WHERE matched.user_id = q.user_id AND matched.domain = NULLIF(p.mailgun_domain, '')
+                 ORDER BY matched.id ASC
+                 LIMIT 1
+             )
+             LEFT JOIN mailgun_domains dd ON dd.id = (
+                 SELECT fallback.id
+                 FROM mailgun_domains fallback
+                 WHERE fallback.user_id = q.user_id AND fallback.is_active = 1
+                 ORDER BY fallback.is_default DESC, fallback.id ASC
+                 LIMIT 1
+             )
              WHERE q.status = :status AND q.scheduled_at <= :scheduled_at
                AND j.paused_at IS NULL
                AND j.status != :cancelled
@@ -421,6 +435,14 @@ SQL
             'id' => $row['id'],
         ]);
         $this->insertLog($row, 'failed', $mailgunResult['response'], $error);
+        AppLog::write('error', 'mailgun.send_failed', [
+            'user_id' => (int) $row['user_id'],
+            'job_id' => (int) $row['job_id'],
+            'queue_id' => (int) $row['id'],
+            'domain' => $row['resolved_domain'] ?? null,
+            'status_code' => (int) ($mailgunResult['status_code'] ?? 0),
+            'error' => $error,
+        ]);
     }
 
     private function insertLog(array $row, string $status, ?string $response, ?string $error): void

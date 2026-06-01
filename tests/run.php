@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 require __DIR__ . '/../app/bootstrap.php';
 
+use App\AdminRecoveryService;
 use App\Database;
 use App\DomainService;
 use App\FromGenerator;
 use App\JsonValidator;
+use App\AppLog;
 use App\MailgunClient;
 use App\MailgunSettingsService;
 use App\PresetService;
@@ -192,6 +194,103 @@ test('Security encrypts, decrypts, and masks API keys', function (): void {
     assert_same('key-*****************6789', Security::maskSecret($secret));
 });
 
+test('Admin recovery resets password, activates admin, and rotates token', function (): void {
+    $pdo = integration_pdo();
+    $userService = new UserService($pdo);
+    $userId = $userService->create('Recovery Admin', 'recover@example.com', 'password123', 'admin');
+    $userService->update($userId, 'Recovery Admin', 'recover@example.com', 'admin', 'inactive');
+    $localPath = APP_BASE_PATH . '/storage/test-local-' . bin2hex(random_bytes(4)) . '.php';
+
+    try {
+        file_put_contents($localPath, "<?php\n\nreturn ['app_key' => 'test-key'];\n", LOCK_EX);
+        $recovery = new AdminRecoveryService($pdo, $localPath);
+        $recovery->ensureToken();
+        $local = require $localPath;
+        $token = (string) ($local['admin_recovery_token'] ?? '');
+        assert_true(strlen($token) === 48);
+
+        try {
+            $recovery->resetAdminPassword('wrong-token', 'recover@example.com', 'new-password-2026');
+            throw new RuntimeException('Invalid recovery token should fail');
+        } catch (InvalidArgumentException $exception) {
+            assert_contains('Invalid recovery token', $exception->getMessage());
+        }
+
+        $recovery->resetAdminPassword($token, 'recover@example.com', 'new-password-2026');
+        $admin = $userService->find($userId);
+        assert_same('active', $admin['status']);
+        assert_true(password_verify('new-password-2026', $admin['password_hash']));
+        $rotatedLocal = require $localPath;
+        assert_true($token !== $rotatedLocal['admin_recovery_token']);
+    } finally {
+        if (is_file($localPath)) {
+            unlink($localPath);
+        }
+    }
+});
+
+test('AppLog stores useful context and redacts secrets', function (): void {
+    $path = APP_BASE_PATH . '/storage/test-app-log-' . bin2hex(random_bytes(4)) . '.log';
+    try {
+        AppLog::write('error', 'mailgun.test', [
+            'domain' => 'mg.example.com',
+            'api_key' => 'key-secret',
+            'nested' => ['token' => 'token-secret'],
+        ], $path);
+
+        $events = AppLog::recent(10, $path);
+        assert_same(1, count($events));
+        assert_same('mailgun.test', $events[0]['event']);
+        assert_same('mg.example.com', $events[0]['context']['domain']);
+        assert_same('[REDACTED]', $events[0]['context']['api_key']);
+        assert_same('[REDACTED]', $events[0]['context']['nested']['token']);
+    } finally {
+        if (is_file($path)) {
+            unlink($path);
+        }
+    }
+});
+
+test('URL helpers support shared hosting root, subdirectory, and public document root', function (): void {
+    $serverKeys = ['DOCUMENT_ROOT', 'SCRIPT_NAME', 'SCRIPT_FILENAME'];
+    $original = [];
+    foreach ($serverKeys as $key) {
+        $original[$key] = array_key_exists($key, $_SERVER) ? $_SERVER[$key] : null;
+    }
+
+    try {
+        $_SERVER['DOCUMENT_ROOT'] = APP_BASE_PATH;
+        $_SERVER['SCRIPT_NAME'] = '/login.php';
+        $_SERVER['SCRIPT_FILENAME'] = APP_BASE_PATH . '/login.php';
+        assert_same('', app_base_url());
+        assert_same('/login.php', url('/login.php'));
+        assert_same('/public/assets/style.css', asset('style.css'));
+
+        $folderUrl = filesystem_path_to_url(basename(str_replace('\\', '/', APP_BASE_PATH)));
+        $_SERVER['DOCUMENT_ROOT'] = dirname(APP_BASE_PATH);
+        $_SERVER['SCRIPT_NAME'] = $folderUrl . '/login.php';
+        $_SERVER['SCRIPT_FILENAME'] = APP_BASE_PATH . '/login.php';
+        assert_same($folderUrl, app_base_url());
+        assert_same($folderUrl . '/login.php', url('/login.php'));
+        assert_same($folderUrl . '/public/assets/style.css', asset('style.css'));
+
+        $_SERVER['DOCUMENT_ROOT'] = APP_BASE_PATH . '/public';
+        $_SERVER['SCRIPT_NAME'] = '/login.php';
+        $_SERVER['SCRIPT_FILENAME'] = APP_BASE_PATH . '/public/login.php';
+        assert_same('', app_base_url());
+        assert_same('/login.php', url('/login.php'));
+        assert_same('/assets/style.css', asset('style.css'));
+    } finally {
+        foreach ($original as $key => $value) {
+            if ($value === null) {
+                unset($_SERVER[$key]);
+            } else {
+                $_SERVER[$key] = $value;
+            }
+        }
+    }
+});
+
 test('MailgunClient builds region endpoint and payload', function (): void {
     assert_same('https://api.mailgun.net/v3/mg.example.com/messages', MailgunClient::endpoint('US', 'mg.example.com'));
     assert_same('https://api.eu.mailgun.net/v3/mg.example.com/messages', MailgunClient::endpoint('EU', 'mg.example.com'));
@@ -350,6 +449,51 @@ test('Domains can be managed and tested without sending mail', function (): void
     $domain = $domains->find($userId, $domainId);
     assert_same('ok', $domain['last_test_status']);
     assert_same('EU', $domain['region']);
+});
+
+test('Queue processing falls back to the default managed Mailgun domain', function (): void {
+    $pdo = integration_pdo();
+    $userId = (new UserService($pdo))->create('Default Domain User', 'default-domain@example.com', 'password123', 'user');
+    (new MailgunSettingsService($pdo))->save($userId, [
+        'api_key' => 'key-test',
+        'domain' => '',
+        'region' => 'US',
+        'test_mode' => '1',
+        'daily_limit' => '100',
+        'hourly_limit' => '100',
+    ]);
+    (new DomainService($pdo))->save($userId, [
+        'domain' => 'mg-default.example.com',
+        'region' => 'EU',
+        'default_reply_to' => 'reply@example.com',
+        'test_mode' => '1',
+        'daily_limit' => '100',
+        'hourly_limit' => '100',
+        'is_active' => '1',
+        'is_default' => '1',
+    ]);
+    $recipientId = (new RecipientService($pdo))->create($userId, 'Program A', 'program-a@example.com');
+    $presetId = (new PresetService($pdo))->save($userId, [
+        'name' => 'Default domain fallback',
+        'language' => 'fr',
+        'topic' => 'banking',
+        'from_pattern' => 'qa-{random}@mg-default.example.com',
+        'delay_mode' => 'fixed',
+        'delay_min_seconds' => '0',
+        'delay_max_seconds' => '0',
+        'json_payload' => sample_json(),
+        'recipient_ids' => [$recipientId],
+    ]);
+
+    $fake = new FakeMailgunClient(false);
+    $queue = new QueueService($pdo, $fake);
+    $queue->createJob($userId, $presetId);
+    $result = $queue->processDue(10);
+
+    assert_same(2, $result['sent']);
+    assert_same('mg-default.example.com', $fake->sent[0]['settings']['domain']);
+    assert_same('EU', $fake->sent[0]['settings']['region']);
+    assert_same('reply@example.com', $fake->sent[0]['settings']['default_reply_to']);
 });
 
 test('Preset export import clone and pause resume work', function (): void {

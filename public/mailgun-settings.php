@@ -59,7 +59,7 @@ View::header('Mailgun Settings', $user);
 <section class="section">
     <div class="section-title">
         <h2>Domain Manager</h2>
-        <a class="button" href="/domains.php">Open Domains</a>
+        <a class="button" href="<?php echo e(url('/domains.php')); ?>">Open Domains</a>
     </div>
     <p class="muted">Add one or more Mailgun domains, test credentials, and pick the domain per preset.</p>
 </section>

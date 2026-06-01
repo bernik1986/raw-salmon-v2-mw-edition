@@ -153,7 +153,7 @@ View::header($form['id'] ? 'Edit Preset' : 'Create Preset', $user);
                             <td><?php echo e($attachment['mime_type']); ?></td>
                             <td><?php echo number_format((int) $attachment['size_bytes']); ?> bytes</td>
                             <td>
-                                <button type="submit" name="action" value="delete_attachment" formnovalidate formaction="/preset-edit.php?id=<?php echo (int) $form['id']; ?>" onclick="this.form.attachment_id.value='<?php echo (int) $attachment['id']; ?>'">Delete</button>
+                                <button type="submit" name="action" value="delete_attachment" formnovalidate formaction="<?php echo e(url('/preset-edit.php?id=' . (int) $form['id'])); ?>" onclick="this.form.attachment_id.value='<?php echo (int) $attachment['id']; ?>'">Delete</button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -171,7 +171,7 @@ View::header($form['id'] ? 'Edit Preset' : 'Create Preset', $user);
         <div class="button-row">
             <button type="submit" name="action" value="validate">Validate JSON / Preview</button>
             <button type="submit" name="action" value="save">Save Preset</button>
-            <?php if ($form['id']): ?><a class="button secondary" href="/send-job.php?preset_id=<?php echo (int) $form['id']; ?>">Create Sending Job</a><?php endif; ?>
+            <?php if ($form['id']): ?><a class="button secondary" href="<?php echo e(url('/send-job.php?preset_id=' . (int) $form['id'])); ?>">Create Sending Job</a><?php endif; ?>
         </div>
     </form>
 </section>

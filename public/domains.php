@@ -37,7 +37,7 @@ View::header('Domains', $user);
 <section class="section">
     <h2>Webhook Endpoint</h2>
     <p class="muted">Configure Mailgun delivery webhooks to POST JSON events to this URL after setting your Webhook Signing Key in Mailgun Settings.</p>
-    <input readonly value="<?php echo e((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'yourdomain.com') . '/mailgun-webhook.php'); ?>">
+    <input readonly value="<?php echo e((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'yourdomain.com') . url('/mailgun-webhook.php')); ?>">
 </section>
 
 <section class="section">
